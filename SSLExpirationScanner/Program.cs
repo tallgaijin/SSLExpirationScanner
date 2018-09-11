@@ -25,13 +25,23 @@ namespace SslExpirationScanner
             var firstLine = string.Format("Domain,Response URL,CA,Organization,Serial,Begins,Expires,IP");
             csv.AppendLine(firstLine);
             string ipAddress = "0";
-            string countryFromIp = "None";
             Stopwatch stopwatch = new Stopwatch();
             stopwatch.Start();
             Parallel.ForEach(listOfDomains, new ParallelOptions { MaxDegreeOfParallelism = 12 }, item =>
             {
                 string domain = item;
 
+                // get ip address
+                try
+                {
+                    ipAddress = Dns.GetHostAddresses(domain)[0].ToString();
+                }
+                catch (Exception)
+                {
+                    ipAddress = "0";
+                }
+
+                // try with www and without, as many servers don't redirect
                 try
                 {
                     HttpWebRequest request;
@@ -56,7 +66,7 @@ namespace SslExpirationScanner
                         responseUrl = response.ResponseUri.ToString();
                         response.Close();
                     }
-       
+                    //check if response url is https before getting certificate
                     char httpVsS = responseUrl[4];
                     if (httpVsS == 's')
                     {
@@ -117,6 +127,7 @@ namespace SslExpirationScanner
                 }
                 catch (Exception)
                 {
+                    // write line to csv for domains where we weren't able to get anything
                     Console.WriteLine("Error checking " + domain);
                     var newLine = string.Format("{0},{1},{2},{3},{4},{5},{6},{7}", domain, "Error", "Error", "Error", "Error", "Error", "Error", ipAddress);
                     csv.AppendLine(newLine);
